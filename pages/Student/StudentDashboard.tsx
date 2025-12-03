@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { mockDb } from '../../services/mockDb';
+import { api } from '../../services/api';
 import { Group, PROJECT_SECTIONS, SectionUpload, User, UserRole } from '../../types';
 import { ChatBox } from '../../components/ChatBox';
 import { Users, Upload, FileText, Lock, Edit2, Check, Trash2, Clock, AlertCircle, Menu, X, MessageSquare } from 'lucide-react';
@@ -15,50 +15,51 @@ export const StudentDashboard: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Fetch data
-  const loadData = () => {
+  const loadData = async () => {
     if (user) {
-      const g = mockDb.getGroupForStudent(user.id);
+      const g = await api.getGroupForStudent(user.id);
       setGroup(g);
       if (g) {
         setTempGroupName(g.name);
         // Get members
-        const mems = g.memberIds.map(id => mockDb.getStudent(id)).filter((u): u is User => !!u);
-        setMembers(mems);
+        const memsPromises = g.memberIds.map(id => api.getStudent(id));
+        const memsResults = await Promise.all(memsPromises);
+        setMembers(memsResults.filter((u): u is User => !!u));
+        
         // Get uploads
-        setUploads(mockDb.getUploadsForStudent(user.id));
+        const up = await api.getUploadsForStudent(user.id);
+        setUploads(up);
       }
     }
   };
 
   useEffect(() => {
     loadData();
-    // Poll for updates (e.g. if someone else joins or renames)
-    const interval = setInterval(loadData, 3000);
+    // Poll for updates (simplified approach for group name/uploads)
+    const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
   }, [user]);
 
-  const handleFileUpload = (sectionId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (sectionId: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && user && group) {
-      mockDb.uploadFile(user.id, sectionId, file.name);
+      await api.uploadFile(user.id, sectionId, file.name);
       loadData();
     }
   };
 
-  const handleRemoveFile = (e: React.MouseEvent, sectionId: number) => {
+  const handleRemoveFile = async (e: React.MouseEvent, sectionId: number) => {
     e.stopPropagation();
-    // Simple confirmation dialog
     if (user && window.confirm("Are you sure you want to delete this file? This cannot be undone.")) {
-        mockDb.deleteUpload(user.id, sectionId);
-        // Force immediate reload to update UI
-        setTimeout(loadData, 50);
+        await api.deleteUpload(user.id, sectionId);
+        loadData();
     }
   };
 
-  const saveGroupName = () => {
+  const saveGroupName = async () => {
     if (group && tempGroupName.trim()) {
       try {
-        mockDb.updateGroupName(group.id, tempGroupName);
+        await api.updateGroupName(group.id, tempGroupName);
         setIsEditingName(false);
         loadData();
       } catch (err) {

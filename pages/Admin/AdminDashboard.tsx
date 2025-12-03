@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { mockDb } from '../../services/mockDb';
+import { api } from '../../services/api';
 import { Group, PreferenceOption, PROJECT_SECTIONS, SectionUpload, User, UserRole } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { ChatBox } from '../../components/ChatBox';
@@ -22,11 +22,17 @@ export const AdminDashboard: React.FC = () => {
   // Remark State
   const [remarkText, setRemarkText] = useState<{ [key: string]: string }>({});
 
-  const refreshData = () => {
-    setGroups(mockDb.getAllGroups());
-    setOptions(mockDb.getOptions());
-    if (selectedGroup) {
-      loadGroupDetails(selectedGroup);
+  const refreshData = async () => {
+    try {
+        const g = await api.getAllGroups();
+        setGroups(g);
+        const o = await api.getOptions();
+        setOptions(o);
+        if (selectedGroup) {
+            loadGroupDetails(selectedGroup);
+        }
+    } catch (err) {
+        console.error("Failed to load admin data", err);
     }
   };
 
@@ -36,27 +42,32 @@ export const AdminDashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, []); 
 
-  const loadGroupDetails = (group: Group) => {
+  const loadGroupDetails = async (group: Group) => {
     setSelectedGroup(group);
-    const members = group.memberIds.map(id => mockDb.getStudent(id)).filter((u): u is User => !!u);
+    
+    // Get members
+    const memsPromises = group.memberIds.map(id => api.getStudent(id));
+    const memsResults = await Promise.all(memsPromises);
+    const members = memsResults.filter((u): u is User => !!u);
     setStudentsInGroup(members);
     
-    const allUploads = mockDb.getAllUploads();
+    // Get Uploads
+    const allUploads = await api.getAllUploads();
     const relevantUploads = allUploads.filter(u => group.memberIds.includes(u.studentId));
     setGroupUploads(relevantUploads);
   };
 
-  const handleSaveRemark = (studentId: string, sectionId: number) => {
+  const handleSaveRemark = async (studentId: string, sectionId: number) => {
     const key = `${studentId}-${sectionId}`;
     if (remarkText[key]) {
-      mockDb.addRemark(studentId, sectionId, remarkText[key]);
+      await api.addRemark(studentId, sectionId, remarkText[key]);
       refreshData();
       alert('Remark saved');
     }
   };
 
-  const handleUpdateOption = (id: number) => {
-    mockDb.updateOption(id, editTitle, editDesc);
+  const handleUpdateOption = async (id: number) => {
+    await api.updateOption(id, editTitle, editDesc);
     setEditOptionId(null);
     refreshData();
   };

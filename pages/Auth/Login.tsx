@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { mockDb } from '../../services/mockDb';
+import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { LogIn } from 'lucide-react';
 
@@ -8,17 +8,22 @@ export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     try {
-      const user = mockDb.login(email, password);
+      const user = await api.login(email, password);
       login(user);
       navigate('/');
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -64,9 +69,10 @@ export const Login: React.FC = () => {
           </div>
           <button
             type="submit"
-            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-indigo-700 transition font-semibold shadow-lg shadow-indigo-500/30 mt-2"
+            disabled={loading}
+            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-indigo-700 transition font-semibold shadow-lg shadow-indigo-500/30 mt-2 disabled:opacity-50"
           >
-            Sign In
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
         

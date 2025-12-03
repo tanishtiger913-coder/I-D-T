@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { mockDb } from '../services/mockDb';
+import { api } from '../services/api';
 import { ChatMessage, UserRole } from '../types';
 import { Send, Smile } from 'lucide-react';
 
@@ -16,14 +16,15 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ groupId, currentUserId, curren
   const [newMessage, setNewMessage] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
-  const fetchMessages = () => {
-    const msgs = mockDb.getGroupChat(groupId);
+  const fetchMessages = async () => {
+    const msgs = await api.getGroupChat(groupId);
     setMessages(msgs);
   };
 
   useEffect(() => {
     fetchMessages();
-    const interval = setInterval(fetchMessages, 2000);
+    // Simple polling for updates
+    const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
   }, [groupId]);
 
@@ -31,12 +32,14 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ groupId, currentUserId, curren
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
     
-    mockDb.sendMessage(groupId, currentUserId, currentUserName, newMessage);
+    const text = newMessage;
     setNewMessage('');
+    
+    await api.sendMessage(groupId, currentUserId, currentUserName, text);
     fetchMessages();
   };
 

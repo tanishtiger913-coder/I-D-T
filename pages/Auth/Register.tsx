@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { mockDb } from '../../services/mockDb';
+import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
 import { UserPlus } from 'lucide-react';
@@ -11,17 +11,31 @@ export const Register: React.FC = () => {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.STUDENT);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     try {
-      const user = mockDb.register(name, email, password, role);
-      login(user);
-      navigate('/');
+      await api.register(name, email, password, role);
+      // Automatically login after register usually requires email confirmation in Supabase by default
+      // For this demo, we assume auto-confirm is enabled or we ask user to check email.
+      // But to mimic old behavior, let's try to login immediately.
+      try {
+        const user = await api.login(email, password);
+        // Context will update via subscription, but we can navigate
+        navigate('/');
+      } catch (loginError) {
+        // If login fails (e.g. email confirmation required), send to login page
+        alert('Registration successful! Please check your email or sign in.');
+        navigate('/login');
+      }
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -33,7 +47,7 @@ export const Register: React.FC = () => {
                 <UserPlus className="h-8 w-8" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900">Create Account</h2>
-            <p className="text-gray-500 mt-2">Join EduGroup Pro today</p>
+            <p className="text-gray-500 mt-2">Join I.D.T Lab today</p>
         </div>
 
         {error && (
@@ -100,9 +114,10 @@ export const Register: React.FC = () => {
           </div>
           <button
             type="submit"
-            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-indigo-700 transition font-semibold shadow-lg shadow-indigo-500/30 mt-4"
+            disabled={loading}
+            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-indigo-700 transition font-semibold shadow-lg shadow-indigo-500/30 mt-4 disabled:opacity-50"
           >
-            Create Account
+            {loading ? 'Creating...' : 'Create Account'}
           </button>
         </form>
         <div className="mt-8 text-center pt-6 border-t border-gray-100">

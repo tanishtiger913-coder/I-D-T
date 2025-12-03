@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { mockDb } from '../../services/mockDb';
+import { api } from '../../services/api';
 import { PreferenceOption } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { CheckCircle, ArrowRight, Users, Lock, Info } from 'lucide-react';
@@ -13,52 +13,48 @@ export const PreferenceSelection: React.FC = () => {
   const [availability, setAvailability] = useState<Record<number, { available: boolean; batch: number; remaining: number }>>({});
 
   useEffect(() => {
-    setOptions(mockDb.getOptions());
-    
-    // Check if user state is out of sync with DB
-    if (user) {
-      const dbUser = mockDb.getStudent(user.id);
-      if (dbUser && dbUser.preferencesLocked && !user.preferencesLocked) {
-        // Auto-fix state mismatch
-        refreshUser(dbUser);
-      }
-    }
+    const fetchData = async () => {
+        try {
+            const opts = await api.getOptions();
+            setOptions(opts);
+            
+            // Check if user state is out of sync with DB
+            if (user) {
+                const dbUser = await api.getStudent(user.id);
+                if (dbUser && dbUser.preferencesLocked && !user.preferencesLocked) {
+                    refreshUser(dbUser);
+                }
+            }
 
-    // Load availability stats
-    const stats: any = {};
-    mockDb.getOptions().forEach(opt => {
-        stats[opt.id] = mockDb.getOptionStats(opt.id);
-    });
-    setAvailability(stats);
+            // Load availability stats
+            const stats: any = {};
+            for (const opt of opts) {
+                stats[opt.id] = await api.getOptionStats(opt.id);
+            }
+            setAvailability(stats);
+        } catch (err) {
+            console.error("Failed to load options", err);
+        }
+    };
+    fetchData();
+  }, [user]);
 
-  }, [user, refreshUser]);
-
-  const handleConfirmJoin = () => {
+  const handleConfirmJoin = async () => {
     if (!selectedOptionId || !user) return;
     
     setLoading(true);
     setError('');
 
     try {
-        // Use a small timeout to allow UI to show loading state
-        setTimeout(() => {
-            try {
-                mockDb.joinGroup(user.id, selectedOptionId);
-                // Refresh local user state to reflect locked preferences
-                refreshUser({ ...user, preferencesLocked: true });
-            } catch (err: any) {
-                setError(err.message);
-                setLoading(false);
-                // If error is "already joined", force refresh
-                if (err.message.includes('already joined')) {
-                    const dbUser = mockDb.getStudent(user.id);
-                    if (dbUser) refreshUser(dbUser);
-                }
-            }
-        }, 500);
+        await api.joinGroup(user.id, selectedOptionId);
+        refreshUser({ ...user, preferencesLocked: true });
     } catch (err: any) {
-      setError(err.message);
-      setLoading(false);
+        setError(err.message);
+        setLoading(false);
+        if (err.message.includes('Already in a group')) {
+            const dbUser = await api.getStudent(user.id);
+            if (dbUser) refreshUser(dbUser);
+        }
     }
   };
 
